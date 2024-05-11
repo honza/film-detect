@@ -128,11 +128,61 @@ impl WhiteBalanceFineTune {
 }
 
 #[derive(Debug)]
+pub enum GrainRoughness {
+    Off,
+    Weak,
+    Strong,
+}
+
+#[derive(Debug)]
+pub enum GrainSize {
+    Off,
+    Small,
+    Large,
+}
+
+#[derive(Debug)]
+pub enum ColorChrome {
+    Off,
+    Weak,
+    Strong,
+}
+
+#[derive(Debug)]
+pub enum ColorChromeFxBlue {
+    Off,
+    Weak,
+    Strong,
+}
+
+#[derive(Debug)]
+pub enum FilmMode {
+    Provia,
+    Velvia,
+    Astia,
+    ProNegStd,
+    ProNegHi,
+    ClassicChrome,
+    Eterna,
+    ClassicNegative,
+    NostalgicNeg,
+    RealaACE,
+}
+
+#[derive(Debug)]
 pub struct FujifilmSettings {
     white_balance: WhiteBalance,
     white_balance_fine_tune: WhiteBalanceFineTune,
     sharpness: Sharpness,
     noise_reduction: NoiseReduction,
+    clarity: i32,
+    shadow: i32,
+    highlight: i32,
+    grain_roughness: GrainRoughness,
+    grain_size: GrainSize,
+    color_chrome: ColorChrome,
+    color_chrome_fx_blue: ColorChromeFxBlue,
+    film_mode: FilmMode,
 }
 
 impl FujifilmSettings {
@@ -142,6 +192,14 @@ impl FujifilmSettings {
             sharpness: Sharpness::Normal,
             white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
             noise_reduction: NoiseReduction::Normal,
+            clarity: 0,
+            shadow: 0,
+            highlight: 0,
+            grain_roughness: GrainRoughness::Off,
+            grain_size: GrainSize::Off,
+            color_chrome: ColorChrome::Off,
+            color_chrome_fx_blue: ColorChromeFxBlue::Off,
+            film_mode: FilmMode::Provia,
         }
     }
 }
@@ -196,6 +254,13 @@ fn slurp_u32(data: &[u8], offset: &mut usize) -> u32 {
     num.copy_from_slice(&data[*offset..*offset + 4]);
     *offset += 4;
     u32::from_le_bytes(num)
+}
+
+fn slurp_i32(data: &[u8], offset: &mut usize) -> i32 {
+    let mut num = [0u8; 4];
+    num.copy_from_slice(&data[*offset..*offset + 4]);
+    *offset += 4;
+    i32::from_le_bytes(num)
 }
 
 fn run() -> io::Result<()> {
@@ -290,17 +355,123 @@ fn run() -> io::Result<()> {
                             }
                             0x100f => {
                                 println! {"  match - clarity"}
+
+                                // TODO: this could be more intelligent
+                                offset -= 4;
+                                let clarity = slurp_i32(v, &mut offset) / 1000;
                                 // let clarity = read_u32(v, data_value as usize);
                                 // let s = NoiseReduction::from_u16(data_value as u16);
                                 println!("{:?}", clarity);
-                                // result.noise_reduction = s;
+                                result.clarity = clarity;
                             }
-                            _ => {
-                                // println!("no {} {:#01x}", tag, tag);
-                            }
-                        }
+                            0x1040 => {
+                                println! {"  match - shadow"}
+                                offset -= 4;
+                                let shadow = slurp_i32(v, &mut offset);
+                                // let clarity = read_u32(v, data_value as usize);
+                                // let s = NoiseReduction::from_u16(data_value as u16);
+                                println!("{:?}", shadow);
 
-                        // break;
+                                result.shadow = match shadow {
+                                    -64 => 4,
+                                    -48 => 3,
+                                    -32 => 2,
+                                    -16 => 1,
+                                    0 => 0,
+                                    16 => -1,
+                                    32 => -2,
+                                    _ => panic!(""),
+                                };
+                            }
+                            0x1041 => {
+                                println! {"  match - highlight"}
+                                offset -= 4;
+                                let highlight = slurp_i32(v, &mut offset);
+                                // let clarity = read_u32(v, data_value as usize);
+                                // let s = NoiseReduction::from_u16(data_value as u16);
+                                println!("{:?}", highlight);
+                                result.highlight = match highlight {
+                                    -64 => 4,
+                                    -48 => 3,
+                                    -32 => 2,
+                                    -16 => 1,
+                                    0 => 0,
+                                    16 => -1,
+                                    32 => -2,
+                                    _ => panic!(""),
+                                };
+                            }
+                            0x1047 => {
+                                println! {"  match - grain roughness"}
+                                offset -= 4;
+                                let roughness = slurp_i32(v, &mut offset);
+                                println!("{:?}", roughness);
+                                result.grain_roughness = match roughness {
+                                    0 => GrainRoughness::Off,
+                                    32 => GrainRoughness::Weak,
+                                    64 => GrainRoughness::Strong,
+                                    _ => panic!(""),
+                                };
+                            }
+                            0x1048 => {
+                                println! {"  match - color chrome"}
+                                offset -= 4;
+                                let color_chrome = slurp_i32(v, &mut offset);
+                                println!("{:?}", color_chrome);
+                                result.color_chrome = match color_chrome {
+                                    0 => ColorChrome::Off,
+                                    32 => ColorChrome::Weak,
+                                    64 => ColorChrome::Strong,
+                                    _ => panic!(""),
+                                };
+                            }
+                            0x104c => {
+                                println! {"  match - grain effect size"}
+                                offset -= 4;
+                                let size = slurp_u16(v, &mut offset);
+                                offset += 2;
+                                println!("{:?}", size);
+                                result.grain_size = match size {
+                                    0 => GrainSize::Off,
+                                    16 => GrainSize::Small,
+                                    32 => GrainSize::Large,
+                                    _ => panic!("weird grain effect"),
+                                };
+                            }
+                            0x104e => {
+                                println! {"  match - color chrome fx blue"}
+                                offset -= 4;
+                                let color_chrome = slurp_i32(v, &mut offset);
+                                println!("{:?}", color_chrome);
+                                result.color_chrome_fx_blue = match color_chrome {
+                                    0 => ColorChromeFxBlue::Off,
+                                    32 => ColorChromeFxBlue::Weak,
+                                    64 => ColorChromeFxBlue::Strong,
+                                    _ => panic!(""),
+                                };
+                            }
+                            0x1401 => {
+                                println! {"  match - film"}
+                                offset -= 4;
+                                let film = slurp_u16(v, &mut offset);
+                                offset += 2;
+                                println!("{:?}", film);
+                                result.film_mode = match film {
+                                    0x0 => FilmMode::Provia,
+                                    0x120 => FilmMode::Astia,
+                                    0x400 => FilmMode::Velvia,
+                                    0x500 => FilmMode::ProNegStd,
+                                    0x501 => FilmMode::ProNegHi,
+                                    0x600 => FilmMode::ClassicChrome,
+                                    0x700 => FilmMode::Eterna,
+                                    0x800 => FilmMode::ClassicNegative,
+                                    0xa00 => FilmMode::NostalgicNeg,
+                                    0xb00 => FilmMode::RealaACE,
+                                    _ => panic!(""),
+                                };
+                            }
+                            _ => {}
+                        }
                     }
 
                     // after the FUJIFILM, we should skip RAF (16 bytes)
