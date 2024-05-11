@@ -1,4 +1,26 @@
-use std::io;
+use std::{io, path};
+
+#[derive(Debug)]
+pub enum Saturation {
+    Normal,
+    MediumHigh,
+    VeryHigh,
+    Highest,
+    High,
+    MediumLow,
+    Low,
+    NoneBW,
+    BWRed,
+    BWYellow,
+    BWGreen,
+    BWSepia,
+    VeryLow,
+    Lowest,
+    Acros,
+    AcrosRed,
+    AcrosYellow,
+    AcrosGreen,
+}
 
 #[derive(Debug)]
 pub enum Sharpness {
@@ -29,6 +51,14 @@ impl Sharpness {
             _ => panic!("from_u16"),
         }
     }
+}
+
+#[derive(Debug)]
+pub enum DynamicRange {
+    Auto,
+    DR100,
+    DR200,
+    DR400,
 }
 
 #[derive(Debug)]
@@ -183,6 +213,8 @@ pub struct FujifilmSettings {
     color_chrome: ColorChrome,
     color_chrome_fx_blue: ColorChromeFxBlue,
     film_mode: FilmMode,
+    dynamic_range: DynamicRange,
+    saturation: Saturation,
 }
 
 impl FujifilmSettings {
@@ -200,6 +232,8 @@ impl FujifilmSettings {
             color_chrome: ColorChrome::Off,
             color_chrome_fx_blue: ColorChromeFxBlue::Off,
             film_mode: FilmMode::Provia,
+            dynamic_range: DynamicRange::Auto,
+            saturation: Saturation::Normal,
         }
     }
 }
@@ -263,34 +297,25 @@ fn slurp_i32(data: &[u8], offset: &mut usize) -> i32 {
     i32::from_le_bytes(num)
 }
 
-fn run() -> io::Result<()> {
-    println!("Hello, world!");
-
+fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings> {
     let mut result = FujifilmSettings::new();
 
-    let path = "test-portra.jpg";
+    // let path = "test-portra.jpg";
 
     let file = std::fs::File::open(path)?;
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
     let exif = exifreader.read_from_container(&mut bufreader).unwrap();
+
     for f in exif.fields() {
         if f.tag.number() == 37500 {
-            println!(
-                "{:#01x} {} --- {} {} {}",
-                f.tag.number(),
-                f.tag.number(),
-                f.tag,
-                f.ifd_num,
-                f.display_value().with_unit(&exif)
-            );
-
             match f.value {
                 exif::Value::Undefined(ref v, _index) => {
                     let mut offset: usize = 0;
 
-                    let fujifilm = slurp_string(v, &mut offset, 8);
-                    println!("header {}", fujifilm);
+                    // TODO: asset that this is FUJIFILM
+                    let _fujifilm = slurp_string(v, &mut offset, 8);
+                    // println!("header {}", fujifilm);
 
                     while offset < v.len() {
                         let tag = slurp_u16(v, &mut offset);
@@ -301,76 +326,82 @@ fn run() -> io::Result<()> {
                         }
 
                         // TODO: when data_type is 9, data_value must be signed
-                        let data_type = slurp_u16(v, &mut offset);
-                        let comp_count = slurp_u32(v, &mut offset);
+                        let _data_type = slurp_u16(v, &mut offset);
+                        let _comp_count = slurp_u32(v, &mut offset);
                         let data_value = slurp_u32(v, &mut offset);
 
-                        println!(" tag --- {} {:#01x}", tag, tag);
-                        println!(" data --- {}", data_type);
-                        println!(" comp --- {}", comp_count);
-                        println!(" data --- {}", data_value);
+                        // println!(" tag --- {} {:#01x}", tag, tag);
+                        // println!(" data --- {}", data_type);
+                        // println!(" comp --- {}", comp_count);
+                        // println!(" data --- {}", data_value);
 
-                        if data_type == 2 {
-                            let serial = read_string(v, data_value as usize, comp_count as usize);
-                            println!(" value --- {}", serial);
-                        }
+                        // if data_type == 2 {
+                        //     let serial = read_string(v, data_value as usize, comp_count as usize);
+                        //     println!(" value --- {}", serial);
+                        // }
 
                         match tag {
                             0xc => {
                                 panic!("RAF data shouldn't be here");
                             }
-                            0x0010 => {
-                                println! {"  match serial"}
-                            }
-                            0x1000 => {
-                                println! {"  match - quality"}
-                            }
+                            0x0010 => {} // serial number
+                            0x1000 => {} // quality
                             0x1001 => {
-                                println! {"  match - shapness"}
                                 let s = Sharpness::from_u16(data_value as u16);
-                                println!("{:?}", s);
-
                                 result.sharpness = s;
                             }
                             0x1002 => {
-                                println! {"  match - white balance"}
                                 let s = WhiteBalance::from_u16(data_value as u16);
-                                println!("{:?}", s);
                                 result.white_balance = s;
                             }
+                            0x1003 => {
+                                result.saturation = match data_value as u16 {
+                                    0x0 => Saturation::Normal,
+                                    0x80 => Saturation::MediumHigh,
+                                    0xc0 => Saturation::VeryHigh,
+                                    0xe0 => Saturation::Highest,
+                                    0x100 => Saturation::High,
+                                    0x180 => Saturation::MediumLow,
+                                    0x200 => Saturation::Low,
+                                    0x300 => Saturation::NoneBW,
+                                    0x301 => Saturation::BWRed,
+                                    0x302 => Saturation::BWYellow,
+                                    0x303 => Saturation::BWGreen,
+                                    0x310 => Saturation::BWSepia,
+                                    // 0x400 => Saturation::Low
+                                    0x4c0 => Saturation::VeryLow,
+                                    0x4e0 => Saturation::Lowest,
+                                    0x500 => Saturation::Acros,
+                                    0x501 => Saturation::AcrosRed,
+                                    0x502 => Saturation::AcrosYellow,
+                                    0x503 => Saturation::AcrosGreen,
+                                    _ => panic!("invalid saturation value"),
+                                };
+                            }
                             0x100a => {
-                                println! {"  match - white balance fine tune"}
                                 let red = read_i32(v, data_value as usize);
                                 let blue = read_i32(v, (data_value + 4) as usize);
 
                                 let wbft = WhiteBalanceFineTune::from_i32(red, blue);
-                                println!("  ft {:?}", wbft);
                                 result.white_balance_fine_tune = wbft;
                             }
                             0x100e => {
-                                println! {"  match - noise reduction"}
                                 let s = NoiseReduction::from_u16(data_value as u16);
-                                println!("{:?}", s);
                                 result.noise_reduction = s;
                             }
                             0x100f => {
-                                println! {"  match - clarity"}
-
                                 // TODO: this could be more intelligent
                                 offset -= 4;
                                 let clarity = slurp_i32(v, &mut offset) / 1000;
                                 // let clarity = read_u32(v, data_value as usize);
                                 // let s = NoiseReduction::from_u16(data_value as u16);
-                                println!("{:?}", clarity);
                                 result.clarity = clarity;
                             }
                             0x1040 => {
-                                println! {"  match - shadow"}
                                 offset -= 4;
                                 let shadow = slurp_i32(v, &mut offset);
                                 // let clarity = read_u32(v, data_value as usize);
                                 // let s = NoiseReduction::from_u16(data_value as u16);
-                                println!("{:?}", shadow);
 
                                 result.shadow = match shadow {
                                     -64 => 4,
@@ -384,12 +415,8 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x1041 => {
-                                println! {"  match - highlight"}
                                 offset -= 4;
                                 let highlight = slurp_i32(v, &mut offset);
-                                // let clarity = read_u32(v, data_value as usize);
-                                // let s = NoiseReduction::from_u16(data_value as u16);
-                                println!("{:?}", highlight);
                                 result.highlight = match highlight {
                                     -64 => 4,
                                     -48 => 3,
@@ -402,10 +429,8 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x1047 => {
-                                println! {"  match - grain roughness"}
                                 offset -= 4;
                                 let roughness = slurp_i32(v, &mut offset);
-                                println!("{:?}", roughness);
                                 result.grain_roughness = match roughness {
                                     0 => GrainRoughness::Off,
                                     32 => GrainRoughness::Weak,
@@ -414,10 +439,8 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x1048 => {
-                                println! {"  match - color chrome"}
                                 offset -= 4;
                                 let color_chrome = slurp_i32(v, &mut offset);
-                                println!("{:?}", color_chrome);
                                 result.color_chrome = match color_chrome {
                                     0 => ColorChrome::Off,
                                     32 => ColorChrome::Weak,
@@ -426,11 +449,9 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x104c => {
-                                println! {"  match - grain effect size"}
                                 offset -= 4;
                                 let size = slurp_u16(v, &mut offset);
                                 offset += 2;
-                                println!("{:?}", size);
                                 result.grain_size = match size {
                                     0 => GrainSize::Off,
                                     16 => GrainSize::Small,
@@ -439,10 +460,8 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x104e => {
-                                println! {"  match - color chrome fx blue"}
                                 offset -= 4;
                                 let color_chrome = slurp_i32(v, &mut offset);
-                                println!("{:?}", color_chrome);
                                 result.color_chrome_fx_blue = match color_chrome {
                                     0 => ColorChromeFxBlue::Off,
                                     32 => ColorChromeFxBlue::Weak,
@@ -451,11 +470,9 @@ fn run() -> io::Result<()> {
                                 };
                             }
                             0x1401 => {
-                                println! {"  match - film"}
                                 offset -= 4;
                                 let film = slurp_u16(v, &mut offset);
                                 offset += 2;
-                                println!("{:?}", film);
                                 result.film_mode = match film {
                                     0x0 => FilmMode::Provia,
                                     0x120 => FilmMode::Astia,
@@ -470,39 +487,20 @@ fn run() -> io::Result<()> {
                                     _ => panic!(""),
                                 };
                             }
+                            0x140b => {
+                                offset -= 4;
+                                let dynamic = slurp_u16(v, &mut offset);
+                                offset += 2;
+                                result.dynamic_range = match dynamic {
+                                    0 => DynamicRange::Auto,
+                                    100 => DynamicRange::DR100,
+                                    200 => DynamicRange::DR200,
+                                    400 => DynamicRange::DR400,
+                                    _ => panic!("invalid dynamic range"),
+                                };
+                            }
                             _ => {}
                         }
-                    }
-
-                    // after the FUJIFILM, we should skip RAF (16 bytes)
-
-                    for (i, byte) in v.iter().enumerate() {
-                        if *byte == 0 {
-                            println!("{} -", i);
-                        } else {
-                            if *byte < 33 || *byte > 127 {
-                                println!("{} - {:#x} {}", i, byte, byte);
-                            } else {
-                                println!("{} - {:#x} {} '{}'", i, byte, byte, *byte as char);
-                            }
-                        }
-
-                        // 722 - 0x47 71 'G'
-                        // 723 - 0x14 20
-                        // 724 - 0x2 2
-                        // 725 -
-                        // 726 - 0x20 32
-                        // 727 -
-                        // 728 -
-                        // 729 -
-                        // 730 - 0x6 6
-                        // 731 - 0x4 4
-                        // 732 -
-                        // 733 -
-                        //
-                        //
-                        //    47 14      | 02 00  | 20 00 00 00      | 06 04 00 00
-                        //    Fuji Model | string | data byte length | index
                     }
                 }
                 _ => (),
@@ -510,12 +508,20 @@ fn run() -> io::Result<()> {
         }
     }
 
-    println!("{}", result);
-    println!("{:?}", result);
+    // println!("{}", result);
+    // println!("{:?}", result);
 
-    Ok(())
+    Ok(result)
 }
 
-fn main() {
-    run();
+fn main() -> std::io::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    println!("{:?}", args);
+
+    for arg in &args[1..] {
+        let fujifilm_settings = get_fujifilm_settings(path::Path::new(&arg))?;
+        println!("{:?}", fujifilm_settings);
+    }
+
+    Ok(())
 }
