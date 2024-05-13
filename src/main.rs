@@ -300,8 +300,6 @@ fn slurp_i32(data: &[u8], offset: &mut usize) -> i32 {
 fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings> {
     let mut result = FujifilmSettings::new();
 
-    // let path = "test-portra.jpg";
-
     let file = std::fs::File::open(path)?;
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
@@ -313,13 +311,16 @@ fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings>
                 exif::Value::Undefined(ref v, _index) => {
                     let mut offset: usize = 0;
 
-                    // TODO: asset that this is FUJIFILM
-                    let _fujifilm = slurp_string(v, &mut offset, 8);
-                    // println!("header {}", fujifilm);
+                    let fujifilm = slurp_string(v, &mut offset, 8);
+
+                    if fujifilm != "FUJIFILM" {
+                        panic!("not a fuji file")
+                    }
 
                     while offset < v.len() {
                         let tag = slurp_u16(v, &mut offset);
 
+                        // Fuji RAF, skip it
                         if tag == 0xc {
                             offset += 16;
                             continue;
@@ -487,7 +488,7 @@ fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings>
                                     _ => panic!(""),
                                 };
                             }
-                            0x140b => {
+                            0x1403 => {
                                 offset -= 4;
                                 let dynamic = slurp_u16(v, &mut offset);
                                 offset += 2;
@@ -516,7 +517,6 @@ fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings>
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    println!("{:?}", args);
 
     for arg in &args[1..] {
         let fujifilm_settings = get_fujifilm_settings(path::Path::new(&arg))?;
