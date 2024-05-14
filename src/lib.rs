@@ -1,6 +1,9 @@
+use serde::{Deserialize, Serialize, Serializer};
 use std::io;
 
-#[derive(Debug)]
+const MAKER_NOTES_TAG: u16 = 37500;
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Saturation {
     Normal,
     MediumHigh,
@@ -22,18 +25,47 @@ pub enum Saturation {
     AcrosGreen,
 }
 
-#[derive(Debug)]
+impl Saturation {
+    fn from_u16(n: u16) -> Result<Self, FilmError> {
+        match n {
+            0x0 => Ok(Saturation::Normal),
+            0x80 => Ok(Saturation::MediumHigh),
+            0xc0 => Ok(Saturation::VeryHigh),
+            0xe0 => Ok(Saturation::Highest),
+            0x100 => Ok(Saturation::High),
+            0x180 => Ok(Saturation::MediumLow),
+            0x200 => Ok(Saturation::Low),
+            0x300 => Ok(Saturation::NoneBW),
+            0x301 => Ok(Saturation::BWRed),
+            0x302 => Ok(Saturation::BWYellow),
+            0x303 => Ok(Saturation::BWGreen),
+            0x310 => Ok(Saturation::BWSepia),
+            0x4c0 => Ok(Saturation::VeryLow),
+            0x4e0 => Ok(Saturation::Lowest),
+            0x500 => Ok(Saturation::Acros),
+            0x501 => Ok(Saturation::AcrosRed),
+            0x502 => Ok(Saturation::AcrosYellow),
+            0x503 => Ok(Saturation::AcrosGreen),
+            // 0x400 => Saturation::Low
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as saturation value.",
+                n
+            ))),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
 pub enum Sharpness {
-    Softest,        // -4  0x0
-    VerySoft,       // -3  0x1
-    Soft,           // -2  0x2
-    MediumSoft,     // -1  0x82
-    Normal,         //  0  0x3
-    MediumHard,     // +1  0x84
-    Hard,           // +2  0x4
-    VeryHard,       // +3  0x5
-    Hardest,        // +4  0x6
-    FilmSimulation, // 0x8000
+    Softest = -4,  // -4  0x0
+    VerySoft = -3, // -3  0x1
+    Soft,          // -2  0x2
+    MediumSoft,    // -1  0x82
+    Normal = 0,    //  0  0x3
+    MediumHard,    // +1  0x84
+    Hard,          // +2  0x4
+    VeryHard,      // +3  0x5
+    Hardest,       // +4  0x6
 }
 
 impl Sharpness {
@@ -53,7 +85,26 @@ impl Sharpness {
     }
 }
 
-#[derive(Debug)]
+impl Serialize for Sharpness {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Softest => serializer.serialize_i32(-4),
+            Self::VerySoft => serializer.serialize_i32(-3),
+            Self::Soft => serializer.serialize_i32(-2),
+            Self::MediumSoft => serializer.serialize_i32(-1),
+            Self::Normal => serializer.serialize_i32(0),
+            Self::MediumHard => serializer.serialize_i32(1),
+            Self::Hard => serializer.serialize_i32(2),
+            Self::VeryHard => serializer.serialize_i32(3),
+            Self::Hardest => serializer.serialize_i32(4),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum DynamicRange {
     Auto,
     DR100,
@@ -61,7 +112,7 @@ pub enum DynamicRange {
     DR400,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum WhiteBalance {
     Auto,                           // 0x0
     AutoWhitePriority,              // 0x1
@@ -85,33 +136,33 @@ pub enum WhiteBalance {
 }
 
 impl WhiteBalance {
-    fn from_u16(n: u16) -> Self {
+    fn from_u16(n: u16) -> Option<Self> {
         match n {
-            0x0 => Self::Auto,
-            0x1 => Self::AutoWhitePriority,
-            0x2 => Self::AutoAmbiancePriority,
-            0x100 => Self::Daylight,
-            0x200 => Self::Cloudy,
-            0x300 => Self::DaylightFluorescent,
-            0x301 => Self::DayWhiteFluorescent,
-            0x302 => Self::WhiteFluorescent,
-            0x303 => Self::WarmWhiteFluorescent,
-            0x304 => Self::LivingRoomWarmWhiteFluorescent,
-            0x400 => Self::Incandescent,
-            0x500 => Self::Flash,
-            0x600 => Self::Underwater,
-            0xf00 => Self::Custom,
-            0xf01 => Self::Custom2,
-            0xf02 => Self::Custom3,
-            0xf03 => Self::Custom4,
-            0xf04 => Self::Custom5,
-            0xff0 => Self::Kelvin,
-            _ => panic!("from_u16"),
+            0x0 => Some(Self::Auto),
+            0x1 => Some(Self::AutoWhitePriority),
+            0x2 => Some(Self::AutoAmbiancePriority),
+            0x100 => Some(Self::Daylight),
+            0x200 => Some(Self::Cloudy),
+            0x300 => Some(Self::DaylightFluorescent),
+            0x301 => Some(Self::DayWhiteFluorescent),
+            0x302 => Some(Self::WhiteFluorescent),
+            0x303 => Some(Self::WarmWhiteFluorescent),
+            0x304 => Some(Self::LivingRoomWarmWhiteFluorescent),
+            0x400 => Some(Self::Incandescent),
+            0x500 => Some(Self::Flash),
+            0x600 => Some(Self::Underwater),
+            0xf00 => Some(Self::Custom),
+            0xf01 => Some(Self::Custom2),
+            0xf02 => Some(Self::Custom3),
+            0xf03 => Some(Self::Custom4),
+            0xf04 => Some(Self::Custom5),
+            0xff0 => Some(Self::Kelvin),
+            _ => None,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub enum NoiseReduction {
     Normal,       // 0 (normal) 0x0
     Strong,       // +2 (strong) 0x100
@@ -140,7 +191,27 @@ impl NoiseReduction {
         }
     }
 }
-#[derive(Debug)]
+
+impl Serialize for NoiseReduction {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Strongest => serializer.serialize_i32(4),
+            Self::VeryStrong => serializer.serialize_i32(3),
+            Self::Strong => serializer.serialize_i32(2),
+            Self::MediumStrong => serializer.serialize_i32(1),
+            Self::Normal => serializer.serialize_i32(0),
+            Self::MediumWeak => serializer.serialize_i32(-1),
+            Self::Weak => serializer.serialize_i32(-2),
+            Self::VeryWeak => serializer.serialize_i32(-3),
+            Self::Weakest => serializer.serialize_i32(-4),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WhiteBalanceFineTune {
     red: i8,
     blue: i8,
@@ -157,35 +228,35 @@ impl WhiteBalanceFineTune {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum GrainRoughness {
     Off,
     Weak,
     Strong,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum GrainSize {
     Off,
     Small,
     Large,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ColorChrome {
     Off,
     Weak,
     Strong,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ColorChromeFxBlue {
     Off,
     Weak,
     Strong,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum FilmMode {
     Provia,
     Velvia,
@@ -199,7 +270,7 @@ pub enum FilmMode {
     RealaACE,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FujifilmSettings {
     white_balance: WhiteBalance,
     white_balance_fine_tune: WhiteBalanceFineTune,
@@ -248,11 +319,86 @@ impl std::fmt::Display for WhiteBalance {
     }
 }
 
-impl std::fmt::Display for FujifilmSettings {
+impl std::fmt::Display for FilmMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "White Balance: {}", self.white_balance)
+        match self {
+            Self::Provia => write!(f, "Provia"),
+            Self::Velvia => write!(f, "Velvia"),
+            Self::Astia => write!(f, "Astia"),
+            Self::ProNegStd => write!(f, "Pro Neg Std"),
+            Self::ProNegHi => write!(f, "Pro Neg Hi"),
+            Self::ClassicChrome => write!(f, "Classic Chrome"),
+            Self::Eterna => write!(f, "Eterna"),
+            Self::ClassicNegative => write!(f, "Classic Negative"),
+            Self::NostalgicNeg => write!(f, "Nostalgic Neg"),
+            Self::RealaACE => write!(f, "Reala ACE"),
+        }
     }
 }
+
+impl std::fmt::Display for NoiseReduction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Strongest => write!(f, "4"),
+            Self::VeryStrong => write!(f, "3"),
+            Self::Strong => write!(f, "2"),
+            Self::MediumStrong => write!(f, "1"),
+            Self::Normal => write!(f, "0"),
+            Self::MediumWeak => write!(f, "-1"),
+            Self::Weak => write!(f, "-2"),
+            Self::VeryWeak => write!(f, "-3"),
+            Self::Weakest => write!(f, "-4"),
+        }
+    }
+}
+
+// white_balance_fine_tune: WhiteBalanceFineTune,
+// sharpness: Sharpness,
+// grain_roughness: GrainRoughness,
+// grain_size: GrainSize,
+// color_chrome: ColorChrome,
+// color_chrome_fx_blue: ColorChromeFxBlue,
+// dynamic_range: DynamicRange,
+// saturation: Saturation,
+
+impl std::fmt::Display for FujifilmSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "White Balance: {}
+Film simulation: {}
+Clarity: {}
+Shadow: {}
+Highlight: {}
+Noise Reduction: {}
+",
+            self.white_balance,
+            self.film_mode,
+            self.clarity,
+            self.shadow,
+            self.highlight,
+            self.noise_reduction
+        )
+    }
+}
+
+// TODO
+const PORTRA: FujifilmSettings = FujifilmSettings {
+    white_balance: WhiteBalance::Auto,
+    sharpness: Sharpness::Normal,
+    white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
+    noise_reduction: NoiseReduction::Normal,
+    clarity: 0,
+    shadow: 0,
+    highlight: 0,
+    grain_roughness: GrainRoughness::Off,
+    grain_size: GrainSize::Off,
+    color_chrome: ColorChrome::Off,
+    color_chrome_fx_blue: ColorChromeFxBlue::Off,
+    film_mode: FilmMode::Provia,
+    dynamic_range: DynamicRange::Auto,
+    saturation: Saturation::Normal,
+};
 
 fn slurp_string<'a>(data: &'a [u8], offset: &'a mut usize, length: usize) -> &'a str {
     let s = std::str::from_utf8(&data[*offset..(*offset + length)]).unwrap();
@@ -297,24 +443,47 @@ fn slurp_i32(data: &[u8], offset: &mut usize) -> i32 {
     i32::from_le_bytes(num)
 }
 
-pub fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSettings> {
+pub enum FilmError {
+    // We failed to read a file or something similar.
+    IO(io::Error),
+    // Exif parsing failed.
+    Exif(exif::Error),
+    // The provided file isn't a Fujifilm photo.
+    NotAFujifilmFile,
+    // Unexpected Fujifilm value
+    UnexpectedValue(String),
+}
+
+impl From<io::Error> for FilmError {
+    fn from(error: io::Error) -> Self {
+        Self::IO(error)
+    }
+}
+
+impl From<exif::Error> for FilmError {
+    fn from(error: exif::Error) -> Self {
+        Self::Exif(error)
+    }
+}
+
+pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings, FilmError> {
     let mut result = FujifilmSettings::new();
 
     let file = std::fs::File::open(path)?;
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = exif::Reader::new();
-    let exif = exifreader.read_from_container(&mut bufreader).unwrap();
+    let exif = exifreader.read_from_container(&mut bufreader)?;
 
-    for f in exif.fields() {
-        if f.tag.number() == 37500 {
-            match f.value {
+    for field in exif.fields() {
+        if field.tag.number() == MAKER_NOTES_TAG {
+            match field.value {
                 exif::Value::Undefined(ref v, _index) => {
                     let mut offset: usize = 0;
 
                     let fujifilm = slurp_string(v, &mut offset, 8);
 
                     if fujifilm != "FUJIFILM" {
-                        panic!("not a fuji file")
+                        return Err(FilmError::NotAFujifilmFile);
                     }
 
                     while offset < v.len() {
@@ -352,32 +521,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSetti
                                 result.sharpness = s;
                             }
                             0x1002 => {
-                                let s = WhiteBalance::from_u16(data_value as u16);
-                                result.white_balance = s;
+                                if let Some(s) = WhiteBalance::from_u16(data_value as u16) {
+                                    result.white_balance = s;
+                                }
                             }
                             0x1003 => {
-                                result.saturation = match data_value as u16 {
-                                    0x0 => Saturation::Normal,
-                                    0x80 => Saturation::MediumHigh,
-                                    0xc0 => Saturation::VeryHigh,
-                                    0xe0 => Saturation::Highest,
-                                    0x100 => Saturation::High,
-                                    0x180 => Saturation::MediumLow,
-                                    0x200 => Saturation::Low,
-                                    0x300 => Saturation::NoneBW,
-                                    0x301 => Saturation::BWRed,
-                                    0x302 => Saturation::BWYellow,
-                                    0x303 => Saturation::BWGreen,
-                                    0x310 => Saturation::BWSepia,
-                                    // 0x400 => Saturation::Low
-                                    0x4c0 => Saturation::VeryLow,
-                                    0x4e0 => Saturation::Lowest,
-                                    0x500 => Saturation::Acros,
-                                    0x501 => Saturation::AcrosRed,
-                                    0x502 => Saturation::AcrosYellow,
-                                    0x503 => Saturation::AcrosGreen,
-                                    _ => panic!("invalid saturation value"),
-                                };
+                                result.saturation = Saturation::from_u16(data_value as u16)?;
                             }
                             0x100a => {
                                 let red = read_i32(v, data_value as usize);
@@ -508,9 +657,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> io::Result<FujifilmSetti
             }
         }
     }
-
-    // println!("{}", result);
-    // println!("{:?}", result);
 
     Ok(result)
 }

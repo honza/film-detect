@@ -1,13 +1,46 @@
-use film_detect;
-use std::{io, path};
+use film_detect::FilmError;
+use serde_json;
+use std::path;
 
-fn main() -> io::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+use clap::Parser;
 
-    for arg in &args[1..] {
-        let fujifilm_settings = film_detect::get_fujifilm_settings(path::Path::new(&arg))?;
-        println!("{:?}", fujifilm_settings);
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Filename to operate on
+    file: String,
+
+    /// Output JSON
+    #[arg(long)]
+    json: bool,
+
+    // Sets a film simulation directory
+    #[arg(short, long, value_name = "DIR")]
+    simulations: Option<path::PathBuf>,
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match film_detect::get_fujifilm_settings(path::Path::new(&cli.file)) {
+        Ok(fujifilm_settings) => {
+            if cli.json {
+                println!("{}", serde_json::json!(fujifilm_settings));
+            } else {
+                println!("{}", fujifilm_settings);
+            }
+        }
+        Err(e) => {
+            let message = match e {
+                FilmError::NotAFujifilmFile => format!("Error: not a Fujifilm file"),
+                FilmError::IO(io_err) => format!("I/O error: {}", io_err),
+                FilmError::Exif(exif_error) => format!("Exif parsing error: {}", exif_error),
+                FilmError::UnexpectedValue(value) => {
+                    format!("Found unexpected value while parsing: {}", value)
+                }
+            };
+            println!("{}", message);
+            std::process::exit(0);
+        }
     }
-
-    Ok(())
 }
