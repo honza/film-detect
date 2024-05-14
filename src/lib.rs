@@ -46,7 +46,6 @@ impl Saturation {
             0x501 => Ok(Saturation::AcrosRed),
             0x502 => Ok(Saturation::AcrosYellow),
             0x503 => Ok(Saturation::AcrosGreen),
-            // 0x400 => Saturation::Low
             _ => Err(FilmError::UnexpectedValue(format!(
                 "Failed to parse {} as saturation value.",
                 n
@@ -69,18 +68,21 @@ pub enum Sharpness {
 }
 
 impl Sharpness {
-    fn from_u16(n: u16) -> Self {
+    fn from_u16(n: u16) -> Result<Self, FilmError> {
         match n {
-            0x0 => Self::Softest,
-            0x1 => Self::VerySoft,
-            0x2 => Self::Soft,
-            0x3 => Self::Normal,
-            0x4 => Self::Hard,
-            0x5 => Self::VeryHard,
-            0x6 => Self::Hardest,
-            0x82 => Self::MediumSoft,
-            0x84 => Self::MediumHard,
-            _ => panic!("from_u16"),
+            0x0 => Ok(Self::Softest),
+            0x1 => Ok(Self::VerySoft),
+            0x2 => Ok(Self::Soft),
+            0x3 => Ok(Self::Normal),
+            0x4 => Ok(Self::Hard),
+            0x5 => Ok(Self::VeryHard),
+            0x6 => Ok(Self::Hardest),
+            0x82 => Ok(Self::MediumSoft),
+            0x84 => Ok(Self::MediumHard),
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as sharpness value.",
+                n
+            ))),
         }
     }
 }
@@ -136,28 +138,31 @@ pub enum WhiteBalance {
 }
 
 impl WhiteBalance {
-    fn from_u16(n: u16) -> Option<Self> {
+    fn from_u16(n: u16) -> Result<Self, FilmError> {
         match n {
-            0x0 => Some(Self::Auto),
-            0x1 => Some(Self::AutoWhitePriority),
-            0x2 => Some(Self::AutoAmbiancePriority),
-            0x100 => Some(Self::Daylight),
-            0x200 => Some(Self::Cloudy),
-            0x300 => Some(Self::DaylightFluorescent),
-            0x301 => Some(Self::DayWhiteFluorescent),
-            0x302 => Some(Self::WhiteFluorescent),
-            0x303 => Some(Self::WarmWhiteFluorescent),
-            0x304 => Some(Self::LivingRoomWarmWhiteFluorescent),
-            0x400 => Some(Self::Incandescent),
-            0x500 => Some(Self::Flash),
-            0x600 => Some(Self::Underwater),
-            0xf00 => Some(Self::Custom),
-            0xf01 => Some(Self::Custom2),
-            0xf02 => Some(Self::Custom3),
-            0xf03 => Some(Self::Custom4),
-            0xf04 => Some(Self::Custom5),
-            0xff0 => Some(Self::Kelvin),
-            _ => None,
+            0x0 => Ok(Self::Auto),
+            0x1 => Ok(Self::AutoWhitePriority),
+            0x2 => Ok(Self::AutoAmbiancePriority),
+            0x100 => Ok(Self::Daylight),
+            0x200 => Ok(Self::Cloudy),
+            0x300 => Ok(Self::DaylightFluorescent),
+            0x301 => Ok(Self::DayWhiteFluorescent),
+            0x302 => Ok(Self::WhiteFluorescent),
+            0x303 => Ok(Self::WarmWhiteFluorescent),
+            0x304 => Ok(Self::LivingRoomWarmWhiteFluorescent),
+            0x400 => Ok(Self::Incandescent),
+            0x500 => Ok(Self::Flash),
+            0x600 => Ok(Self::Underwater),
+            0xf00 => Ok(Self::Custom),
+            0xf01 => Ok(Self::Custom2),
+            0xf02 => Ok(Self::Custom3),
+            0xf03 => Ok(Self::Custom4),
+            0xf04 => Ok(Self::Custom5),
+            0xff0 => Ok(Self::Kelvin),
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as white balance value.",
+                n
+            ))),
         }
     }
 }
@@ -176,18 +181,21 @@ pub enum NoiseReduction {
 }
 
 impl NoiseReduction {
-    fn from_u16(n: u16) -> Self {
+    fn from_u16(n: u16) -> Result<Self, FilmError> {
         match n {
-            0x0 => Self::Normal,
-            0x100 => Self::Strong,
-            0x180 => Self::MediumStrong,
-            0x1c0 => Self::VeryStrong,
-            0x1e0 => Self::Strongest,
-            0x200 => Self::Weak,
-            0x280 => Self::MediumWeak,
-            0x2c0 => Self::VeryWeak,
-            0x2e0 => Self::Weakest,
-            _ => panic!("from_u16"),
+            0x0 => Ok(Self::Normal),
+            0x100 => Ok(Self::Strong),
+            0x180 => Ok(Self::MediumStrong),
+            0x1c0 => Ok(Self::VeryStrong),
+            0x1e0 => Ok(Self::Strongest),
+            0x200 => Ok(Self::Weak),
+            0x280 => Ok(Self::MediumWeak),
+            0x2c0 => Ok(Self::VeryWeak),
+            0x2e0 => Ok(Self::Weakest),
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as noise reduction value.",
+                n
+            ))),
         }
     }
 }
@@ -270,6 +278,52 @@ pub enum FilmMode {
     RealaACE,
 }
 
+#[derive(Deserialize, Debug)]
+pub enum Shadow {
+    Plus4,
+    Plus3,
+    Plus2,
+    Plus1,
+    Zero,
+    Minus1,
+    Minus2,
+}
+
+impl Shadow {
+    fn from_i32(n: i32) -> Result<Self, FilmError> {
+        match n {
+            -64 => Ok(Self::Plus4),
+            -48 => Ok(Self::Plus3),
+            -32 => Ok(Self::Plus2),
+            -16 => Ok(Self::Plus1),
+            0 => Ok(Self::Zero),
+            16 => Ok(Self::Minus1),
+            32 => Ok(Self::Minus2),
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as shadow value.",
+                n
+            ))),
+        }
+    }
+}
+
+impl Serialize for Shadow {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Plus4 => serializer.serialize_i8(4),
+            Self::Plus3 => serializer.serialize_i8(3),
+            Self::Plus2 => serializer.serialize_i8(2),
+            Self::Plus1 => serializer.serialize_i8(1),
+            Self::Zero => serializer.serialize_i8(0),
+            Self::Minus1 => serializer.serialize_i8(-1),
+            Self::Minus2 => serializer.serialize_i8(-2),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FujifilmSettings {
     white_balance: WhiteBalance,
@@ -277,7 +331,7 @@ pub struct FujifilmSettings {
     sharpness: Sharpness,
     noise_reduction: NoiseReduction,
     clarity: i32,
-    shadow: i32,
+    shadow: Shadow,
     highlight: i32,
     grain_roughness: GrainRoughness,
     grain_size: GrainSize,
@@ -296,7 +350,7 @@ impl FujifilmSettings {
             white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
             noise_reduction: NoiseReduction::Normal,
             clarity: 0,
-            shadow: 0,
+            shadow: Shadow::Zero,
             highlight: 0,
             grain_roughness: GrainRoughness::Off,
             grain_size: GrainSize::Off,
@@ -352,6 +406,20 @@ impl std::fmt::Display for NoiseReduction {
     }
 }
 
+impl std::fmt::Display for Shadow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Plus4 => write!(f, "4"),
+            Self::Plus3 => write!(f, "3"),
+            Self::Plus2 => write!(f, "2"),
+            Self::Plus1 => write!(f, "1"),
+            Self::Zero => write!(f, "0"),
+            Self::Minus1 => write!(f, "-1"),
+            Self::Minus2 => write!(f, "-2"),
+        }
+    }
+}
+
 // white_balance_fine_tune: WhiteBalanceFineTune,
 // sharpness: Sharpness,
 // grain_roughness: GrainRoughness,
@@ -389,7 +457,7 @@ const PORTRA: FujifilmSettings = FujifilmSettings {
     white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
     noise_reduction: NoiseReduction::Normal,
     clarity: 0,
-    shadow: 0,
+    shadow: Shadow::Minus2,
     highlight: 0,
     grain_roughness: GrainRoughness::Off,
     grain_size: GrainSize::Off,
@@ -495,40 +563,27 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                             continue;
                         }
 
-                        // TODO: when data_type is 9, data_value must be signed
                         let _data_type = slurp_u16(v, &mut offset);
                         let _comp_count = slurp_u32(v, &mut offset);
-                        let data_value = slurp_u32(v, &mut offset);
-
-                        // println!(" tag --- {} {:#01x}", tag, tag);
-                        // println!(" data --- {}", data_type);
-                        // println!(" comp --- {}", comp_count);
-                        // println!(" data --- {}", data_value);
-
-                        // if data_type == 2 {
-                        //     let serial = read_string(v, data_value as usize, comp_count as usize);
-                        //     println!(" value --- {}", serial);
-                        // }
 
                         match tag {
                             0xc => {
                                 panic!("RAF data shouldn't be here");
                             }
-                            0x0010 => {} // serial number
-                            0x1000 => {} // quality
                             0x1001 => {
-                                let s = Sharpness::from_u16(data_value as u16);
-                                result.sharpness = s;
+                                let data_value = slurp_u32(v, &mut offset);
+                                result.sharpness = Sharpness::from_u16(data_value as u16)?;
                             }
                             0x1002 => {
-                                if let Some(s) = WhiteBalance::from_u16(data_value as u16) {
-                                    result.white_balance = s;
-                                }
+                                let data_value = slurp_u32(v, &mut offset);
+                                result.white_balance = WhiteBalance::from_u16(data_value as u16)?;
                             }
                             0x1003 => {
+                                let data_value = slurp_u32(v, &mut offset);
                                 result.saturation = Saturation::from_u16(data_value as u16)?;
                             }
                             0x100a => {
+                                let data_value = slurp_u32(v, &mut offset);
                                 let red = read_i32(v, data_value as usize);
                                 let blue = read_i32(v, (data_value + 4) as usize);
 
@@ -536,36 +591,19 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 result.white_balance_fine_tune = wbft;
                             }
                             0x100e => {
-                                let s = NoiseReduction::from_u16(data_value as u16);
-                                result.noise_reduction = s;
+                                let data_value = slurp_u32(v, &mut offset);
+                                result.noise_reduction =
+                                    NoiseReduction::from_u16(data_value as u16)?;
                             }
                             0x100f => {
-                                // TODO: this could be more intelligent
-                                offset -= 4;
                                 let clarity = slurp_i32(v, &mut offset) / 1000;
-                                // let clarity = read_u32(v, data_value as usize);
-                                // let s = NoiseReduction::from_u16(data_value as u16);
                                 result.clarity = clarity;
                             }
                             0x1040 => {
-                                offset -= 4;
                                 let shadow = slurp_i32(v, &mut offset);
-                                // let clarity = read_u32(v, data_value as usize);
-                                // let s = NoiseReduction::from_u16(data_value as u16);
-
-                                result.shadow = match shadow {
-                                    -64 => 4,
-                                    -48 => 3,
-                                    -32 => 2,
-                                    -16 => 1,
-                                    0 => 0,
-                                    16 => -1,
-                                    32 => -2,
-                                    _ => panic!(""),
-                                };
+                                result.shadow = Shadow::from_i32(shadow)?;
                             }
                             0x1041 => {
-                                offset -= 4;
                                 let highlight = slurp_i32(v, &mut offset);
                                 result.highlight = match highlight {
                                     -64 => 4,
@@ -579,7 +617,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x1047 => {
-                                offset -= 4;
                                 let roughness = slurp_i32(v, &mut offset);
                                 result.grain_roughness = match roughness {
                                     0 => GrainRoughness::Off,
@@ -589,7 +626,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x1048 => {
-                                offset -= 4;
                                 let color_chrome = slurp_i32(v, &mut offset);
                                 result.color_chrome = match color_chrome {
                                     0 => ColorChrome::Off,
@@ -599,7 +635,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x104c => {
-                                offset -= 4;
                                 let size = slurp_u16(v, &mut offset);
                                 offset += 2;
                                 result.grain_size = match size {
@@ -610,7 +645,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x104e => {
-                                offset -= 4;
                                 let color_chrome = slurp_i32(v, &mut offset);
                                 result.color_chrome_fx_blue = match color_chrome {
                                     0 => ColorChromeFxBlue::Off,
@@ -620,7 +654,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x1401 => {
-                                offset -= 4;
                                 let film = slurp_u16(v, &mut offset);
                                 offset += 2;
                                 result.film_mode = match film {
@@ -638,7 +671,6 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                 };
                             }
                             0x1403 => {
-                                offset -= 4;
                                 let dynamic = slurp_u16(v, &mut offset);
                                 offset += 2;
                                 result.dynamic_range = match dynamic {
@@ -649,7 +681,9 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     _ => panic!("invalid dynamic range"),
                                 };
                             }
-                            _ => {}
+                            _ => {
+                                let _data_value = slurp_u32(v, &mut offset);
+                            }
                         }
                     }
                 }
