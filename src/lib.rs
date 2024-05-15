@@ -324,6 +324,52 @@ impl Serialize for Shadow {
     }
 }
 
+#[derive(Deserialize, Debug)]
+pub enum Highlight {
+    Plus4,
+    Plus3,
+    Plus2,
+    Plus1,
+    Zero,
+    Minus1,
+    Minus2,
+}
+
+impl Highlight {
+    fn from_i32(n: i32) -> Result<Self, FilmError> {
+        match n {
+            -64 => Ok(Self::Plus4),
+            -48 => Ok(Self::Plus3),
+            -32 => Ok(Self::Plus2),
+            -16 => Ok(Self::Plus1),
+            0 => Ok(Self::Zero),
+            16 => Ok(Self::Minus1),
+            32 => Ok(Self::Minus2),
+            _ => Err(FilmError::UnexpectedValue(format!(
+                "Failed to parse {} as highlight value.",
+                n
+            ))),
+        }
+    }
+}
+
+impl Serialize for Highlight {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Plus4 => serializer.serialize_i8(4),
+            Self::Plus3 => serializer.serialize_i8(3),
+            Self::Plus2 => serializer.serialize_i8(2),
+            Self::Plus1 => serializer.serialize_i8(1),
+            Self::Zero => serializer.serialize_i8(0),
+            Self::Minus1 => serializer.serialize_i8(-1),
+            Self::Minus2 => serializer.serialize_i8(-2),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FujifilmSettings {
     white_balance: WhiteBalance,
@@ -332,7 +378,7 @@ pub struct FujifilmSettings {
     noise_reduction: NoiseReduction,
     clarity: i32,
     shadow: Shadow,
-    highlight: i32,
+    highlight: Highlight,
     grain_roughness: GrainRoughness,
     grain_size: GrainSize,
     color_chrome: ColorChrome,
@@ -351,7 +397,7 @@ impl FujifilmSettings {
             noise_reduction: NoiseReduction::Normal,
             clarity: 0,
             shadow: Shadow::Zero,
-            highlight: 0,
+            highlight: Highlight::Zero,
             grain_roughness: GrainRoughness::Off,
             grain_size: GrainSize::Off,
             color_chrome: ColorChrome::Off,
@@ -420,6 +466,20 @@ impl std::fmt::Display for Shadow {
     }
 }
 
+impl std::fmt::Display for Highlight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Plus4 => write!(f, "4"),
+            Self::Plus3 => write!(f, "3"),
+            Self::Plus2 => write!(f, "2"),
+            Self::Plus1 => write!(f, "1"),
+            Self::Zero => write!(f, "0"),
+            Self::Minus1 => write!(f, "-1"),
+            Self::Minus2 => write!(f, "-2"),
+        }
+    }
+}
+
 // white_balance_fine_tune: WhiteBalanceFineTune,
 // sharpness: Sharpness,
 // grain_roughness: GrainRoughness,
@@ -458,7 +518,7 @@ const PORTRA: FujifilmSettings = FujifilmSettings {
     noise_reduction: NoiseReduction::Normal,
     clarity: 0,
     shadow: Shadow::Minus2,
-    highlight: 0,
+    highlight: Highlight::Zero,
     grain_roughness: GrainRoughness::Off,
     grain_size: GrainSize::Off,
     color_chrome: ColorChrome::Off,
@@ -474,9 +534,9 @@ fn slurp_string<'a>(data: &'a [u8], offset: &'a mut usize, length: usize) -> &'a
     s
 }
 
-fn read_string(data: &[u8], offset: usize, length: usize) -> &str {
-    std::str::from_utf8(&data[offset..(offset + length)]).unwrap()
-}
+// fn read_string(data: &[u8], offset: usize, length: usize) -> &str {
+//     std::str::from_utf8(&data[offset..(offset + length)]).unwrap()
+// }
 
 fn read_i32(data: &[u8], offset: usize) -> i32 {
     let mut num = [0u8; 4];
@@ -568,7 +628,9 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
 
                         match tag {
                             0xc => {
-                                panic!("RAF data shouldn't be here");
+                                return Err(FilmError::UnexpectedValue(format!(
+                                    "Unexpected RAF data."
+                                )));
                             }
                             0x1001 => {
                                 let data_value = slurp_u32(v, &mut offset);
@@ -605,16 +667,7 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                             }
                             0x1041 => {
                                 let highlight = slurp_i32(v, &mut offset);
-                                result.highlight = match highlight {
-                                    -64 => 4,
-                                    -48 => 3,
-                                    -32 => 2,
-                                    -16 => 1,
-                                    0 => 0,
-                                    16 => -1,
-                                    32 => -2,
-                                    _ => panic!(""),
-                                };
+                                result.highlight = Highlight::from_i32(highlight)?;
                             }
                             0x1047 => {
                                 let roughness = slurp_i32(v, &mut offset);
@@ -622,7 +675,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     0 => GrainRoughness::Off,
                                     32 => GrainRoughness::Weak,
                                     64 => GrainRoughness::Strong,
-                                    _ => panic!(""),
+                                    _ => {
+                                        return Err(FilmError::UnexpectedValue(format!(
+                                            "Failed to parse {} as grain roughness value.",
+                                            roughness
+                                        )))
+                                    }
                                 };
                             }
                             0x1048 => {
@@ -631,7 +689,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     0 => ColorChrome::Off,
                                     32 => ColorChrome::Weak,
                                     64 => ColorChrome::Strong,
-                                    _ => panic!(""),
+                                    _ => {
+                                        return Err(FilmError::UnexpectedValue(format!(
+                                            "Failed to parse {} as color chrome value.",
+                                            color_chrome
+                                        )))
+                                    }
                                 };
                             }
                             0x104c => {
@@ -641,7 +704,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     0 => GrainSize::Off,
                                     16 => GrainSize::Small,
                                     32 => GrainSize::Large,
-                                    _ => panic!("weird grain effect"),
+                                    _ => {
+                                        return Err(FilmError::UnexpectedValue(format!(
+                                            "Failed to parse {} as grain size value.",
+                                            size
+                                        )))
+                                    }
                                 };
                             }
                             0x104e => {
@@ -650,7 +718,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     0 => ColorChromeFxBlue::Off,
                                     32 => ColorChromeFxBlue::Weak,
                                     64 => ColorChromeFxBlue::Strong,
-                                    _ => panic!(""),
+                                    _ => {
+                                        return Err(FilmError::UnexpectedValue(format!(
+                                            "Failed to parse {} as color chrome fx blue value.",
+                                            color_chrome
+                                        )))
+                                    }
                                 };
                             }
                             0x1401 => {
@@ -667,7 +740,7 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     0x800 => FilmMode::ClassicNegative,
                                     0xa00 => FilmMode::NostalgicNeg,
                                     0xb00 => FilmMode::RealaACE,
-                                    _ => panic!(""),
+                                    _ => return Err(FilmError::UnexpectedValue(format!("hi"))),
                                 };
                             }
                             0x1403 => {
@@ -678,7 +751,12 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                                     100 => DynamicRange::DR100,
                                     200 => DynamicRange::DR200,
                                     400 => DynamicRange::DR400,
-                                    _ => panic!("invalid dynamic range"),
+                                    _ => {
+                                        return Err(FilmError::UnexpectedValue(format!(
+                                            "Failed to parse {} as dynamic range value.",
+                                            dynamic
+                                        )))
+                                    }
                                 };
                             }
                             _ => {
