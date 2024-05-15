@@ -45,6 +45,12 @@ $ cd film-detect
 $ cargo install --path .
 ```
 
+## TODO
+
+- Docs on using this as a library
+- Use [film-simulations](https://github.com/honza/film-simulations) to detect a film stock
+- Clean up display and serialize instances
+
 ## License
 
 GPLv3 or later
