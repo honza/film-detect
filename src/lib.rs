@@ -3,7 +3,7 @@ use std::io;
 
 const MAKER_NOTES_TAG: u16 = 37500;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum Saturation {
     Normal,
     MediumHigh,
@@ -264,8 +264,11 @@ pub enum ColorChromeFxBlue {
     Strong,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub enum FilmMode {
+    // None represents the case when Acros is selected.  Fuji puts the "Acros"
+    // value in the saturation field.  We duplicate it here for convenience.
+    None,
     Provia,
     Velvia,
     Astia,
@@ -276,6 +279,7 @@ pub enum FilmMode {
     ClassicNegative,
     NostalgicNeg,
     RealaACE,
+    Acros,
 }
 
 #[derive(Deserialize, Debug)]
@@ -402,7 +406,7 @@ impl FujifilmSettings {
             grain_size: GrainSize::Off,
             color_chrome: ColorChrome::Off,
             color_chrome_fx_blue: ColorChromeFxBlue::Off,
-            film_mode: FilmMode::Provia,
+            film_mode: FilmMode::None,
             dynamic_range: DynamicRange::Auto,
             saturation: Saturation::Normal,
         }
@@ -413,8 +417,24 @@ impl std::fmt::Display for WhiteBalance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Auto => write!(f, "Auto"),
+            Self::AutoWhitePriority => write!(f, "Auto White Priority"),
+            Self::AutoAmbiancePriority => write!(f, "Auto Ambiance Priority"),
             Self::Daylight => write!(f, "Daylight"),
-            _ => write!(f, "not implemented"),
+            Self::Cloudy => write!(f, "Cloudy"),
+            Self::DaylightFluorescent => write!(f, "Daylight Fluorescent"),
+            Self::DayWhiteFluorescent => write!(f, "Day White Fluorescent"),
+            Self::WhiteFluorescent => write!(f, "White Fluorescent"),
+            Self::WarmWhiteFluorescent => write!(f, "Warm White Fluorescent"),
+            Self::LivingRoomWarmWhiteFluorescent => write!(f, "Living Room Warm White Fluorescent"),
+            Self::Incandescent => write!(f, "Incandescent"),
+            Self::Flash => write!(f, "Flash"),
+            Self::Underwater => write!(f, "Underwater"),
+            Self::Custom => write!(f, "Custom"),
+            Self::Custom2 => write!(f, "Custom2"),
+            Self::Custom3 => write!(f, "Custom3"),
+            Self::Custom4 => write!(f, "Custom4"),
+            Self::Custom5 => write!(f, "Custom5"),
+            Self::Kelvin => write!(f, "Kelvin"),
         }
     }
 }
@@ -422,6 +442,8 @@ impl std::fmt::Display for WhiteBalance {
 impl std::fmt::Display for FilmMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::None => write!(f, "None"),
+            Self::Acros => write!(f, "Acros"),
             Self::Provia => write!(f, "Provia"),
             Self::Velvia => write!(f, "Velvia"),
             Self::Astia => write!(f, "Astia"),
@@ -432,6 +454,35 @@ impl std::fmt::Display for FilmMode {
             Self::ClassicNegative => write!(f, "Classic Negative"),
             Self::NostalgicNeg => write!(f, "Nostalgic Neg"),
             Self::RealaACE => write!(f, "Reala ACE"),
+        }
+    }
+}
+
+impl Serialize for FilmMode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl Serialize for Saturation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Normal => serializer.serialize_i8(0),
+            Self::MediumHigh => serializer.serialize_i8(1),
+            Self::VeryHigh => serializer.serialize_i8(3),
+            Self::Highest => serializer.serialize_i8(4),
+            Self::High => serializer.serialize_i8(2),
+            Self::MediumLow => serializer.serialize_i8(-1),
+            Self::Low => serializer.serialize_i8(-2),
+            Self::VeryLow => serializer.serialize_i8(-3),
+            Self::Lowest => serializer.serialize_i8(-4),
+            _ => serializer.serialize_str(&self.to_string()),
         }
     }
 }
@@ -480,74 +531,115 @@ impl std::fmt::Display for Highlight {
     }
 }
 
-// white_balance_fine_tune: WhiteBalanceFineTune,
-// sharpness: Sharpness,
-// grain_roughness: GrainRoughness,
-// grain_size: GrainSize,
-// color_chrome: ColorChrome,
-// color_chrome_fx_blue: ColorChromeFxBlue,
-// dynamic_range: DynamicRange,
-// saturation: Saturation,
+impl std::fmt::Display for Saturation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Normal => write!(f, "0"),
+            Self::MediumHigh => write!(f, "+1"),
+            Self::VeryHigh => write!(f, "+3"),
+            Self::Highest => write!(f, "+4"),
+            Self::High => write!(f, "+2"),
+            Self::MediumLow => write!(f, "-1"),
+            Self::Low => write!(f, "-2"),
+            Self::NoneBW => write!(f, "None B&W"),
+            Self::BWRed => write!(f, "B&W Red"),
+            Self::BWYellow => write!(f, "B&W Yellow"),
+            Self::BWGreen => write!(f, "B&W Green"),
+            Self::BWSepia => write!(f, "B&W Sepia"),
+            Self::VeryLow => write!(f, "-3"),
+            Self::Lowest => write!(f, "-4"),
+            Self::Acros => write!(f, "Acros"),
+            Self::AcrosRed => write!(f, "Acros Red"),
+            Self::AcrosYellow => write!(f, "Acros Yellow"),
+            Self::AcrosGreen => write!(f, "Acros Green"),
+        }
+    }
+}
+
+impl std::fmt::Display for Sharpness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Softest => write!(f, "-4"),
+            Self::VerySoft => write!(f, "-3"),
+            Self::Soft => write!(f, "-2"),
+            Self::MediumSoft => write!(f, "-1"),
+            Self::Normal => write!(f, "0"),
+            Self::MediumHard => write!(f, "+1"),
+            Self::Hard => write!(f, "+2"),
+            Self::VeryHard => write!(f, "+3"),
+            Self::Hardest => write!(f, "+4"),
+        }
+    }
+}
 
 impl std::fmt::Display for FujifilmSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "White Balance: {}
-Film simulation: {}
-Clarity: {}
+            "Film simulation: {}
+Grain: {:?} {:?}
+Color Chrome: {:?}
+Color Chrome FX Blue: {:?}
+White Balance: {}
+White Balance Fine Tune: R:{} B:{}
+Dynamic Range: {:?}
 Shadow: {}
 Highlight: {}
+Color: {}
+Sharpness: {}
 Noise Reduction: {}
-",
-            self.white_balance,
+Clarity: {}",
             self.film_mode,
-            self.clarity,
+            self.grain_size,
+            self.grain_roughness,
+            self.color_chrome,
+            self.color_chrome_fx_blue,
+            self.white_balance,
+            self.white_balance_fine_tune.red,
+            self.white_balance_fine_tune.blue,
+            self.dynamic_range,
             self.shadow,
             self.highlight,
-            self.noise_reduction
+            self.saturation,
+            self.sharpness,
+            self.noise_reduction,
+            self.clarity,
         )
     }
 }
 
 // TODO
-const PORTRA: FujifilmSettings = FujifilmSettings {
-    white_balance: WhiteBalance::Auto,
-    sharpness: Sharpness::Normal,
-    white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
-    noise_reduction: NoiseReduction::Normal,
-    clarity: 0,
-    shadow: Shadow::Minus2,
-    highlight: Highlight::Zero,
-    grain_roughness: GrainRoughness::Off,
-    grain_size: GrainSize::Off,
-    color_chrome: ColorChrome::Off,
-    color_chrome_fx_blue: ColorChromeFxBlue::Off,
-    film_mode: FilmMode::Provia,
-    dynamic_range: DynamicRange::Auto,
-    saturation: Saturation::Normal,
-};
+// const PORTRA: FujifilmSettings = FujifilmSettings {
+//     white_balance: WhiteBalance::Auto,
+//     sharpness: Sharpness::Normal,
+//     white_balance_fine_tune: WhiteBalanceFineTune { red: 0, blue: 0 },
+//     noise_reduction: NoiseReduction::Normal,
+//     clarity: 0,
+//     shadow: Shadow::Minus2,
+//     highlight: Highlight::Zero,
+//     grain_roughness: GrainRoughness::Off,
+//     grain_size: GrainSize::Off,
+//     color_chrome: ColorChrome::Off,
+//     color_chrome_fx_blue: ColorChromeFxBlue::Off,
+//     film_mode: FilmMode::Provia,
+//     dynamic_range: DynamicRange::Auto,
+//     saturation: Saturation::Normal,
+// };
 
-fn slurp_string<'a>(data: &'a [u8], offset: &'a mut usize, length: usize) -> &'a str {
-    let s = std::str::from_utf8(&data[*offset..(*offset + length)]).unwrap();
-    *offset += length;
-    s
+fn slurp_string<'a>(data: &'a [u8], offset: &'a mut usize, length: usize) -> Option<&'a str> {
+    match std::str::from_utf8(&data[*offset..(*offset + length)]) {
+        Ok(s) => {
+            *offset += length;
+            Some(s)
+        }
+        Err(_) => None,
+    }
 }
-
-// fn read_string(data: &[u8], offset: usize, length: usize) -> &str {
-//     std::str::from_utf8(&data[offset..(offset + length)]).unwrap()
-// }
 
 fn read_i32(data: &[u8], offset: usize) -> i32 {
     let mut num = [0u8; 4];
     num.copy_from_slice(&data[offset..offset + 4]);
     i32::from_le_bytes(num)
-}
-
-fn read_u32(data: &[u8], offset: usize) -> u32 {
-    let mut num = [0u8; 4];
-    num.copy_from_slice(&data[offset..offset + 4]);
-    u32::from_le_bytes(num)
 }
 
 fn slurp_u16(data: &[u8], offset: &mut usize) -> u16 {
@@ -610,8 +702,13 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
 
                     let fujifilm = slurp_string(v, &mut offset, 8);
 
-                    if fujifilm != "FUJIFILM" {
-                        return Err(FilmError::NotAFujifilmFile);
+                    match fujifilm {
+                        Some(s) => {
+                            if s != "FUJIFILM" {
+                                return Err(FilmError::NotAFujifilmFile);
+                            }
+                        }
+                        None => return Err(FilmError::NotAFujifilmFile),
                     }
 
                     while offset < v.len() {
@@ -767,6 +864,16 @@ pub fn get_fujifilm_settings(path: &std::path::Path) -> Result<FujifilmSettings,
                 }
                 _ => (),
             }
+        }
+    }
+
+    if result.film_mode == FilmMode::None {
+        match result.saturation {
+            Saturation::Acros
+            | Saturation::AcrosGreen
+            | Saturation::AcrosRed
+            | Saturation::AcrosYellow => result.film_mode = FilmMode::Acros,
+            _ => {}
         }
     }
 
